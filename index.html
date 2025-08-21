@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>খামার খেলা</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tiro+Bangla:ital@0;1&display=swap');
+
+        body {
+            font-family: 'Tiro Bangla', serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #a4c952;
+            color: #333;
+            margin: 0;
+            overflow: hidden;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .game-container {
+            background-color: #f7e6c4;
+            border: 5px solid #8b4513;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 90vw;
+        }
+
+        h1 {
+            color: #8b4513;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        #money-display {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 20px;
+            text-shadow: 1px 1px 2px #fff;
+        }
+
+        #message-box {
+            min-height: 25px;
+            font-size: 1.2rem;
+            font-style: italic;
+            color: #555;
+            margin-bottom: 20px;
+        }
+        
+        #farm-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-gap: 10px;
+            background-color: #6d4c41;
+            padding: 10px;
+            border-radius: 10px;
+            border: 3px solid #5d4037;
+        }
+
+        .farm-plot {
+            width: 80px;
+            height: 80px;
+            background-color: #8b4513;
+            border: 2px solid #5d4037;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.5rem;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .farm-plot:hover {
+            background-color: #a0522d;
+            transform: translateY(-2px);
+        }
+
+        .plot-growing {
+            background-color: #8b4513; /* মাটির রঙ */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <h1>আমার খামার</h1>
+        <div id="money-display">টাকা: $0</div>
+        <div id="message-box"></div>
+        <div id="farm-grid"></div>
+    </div>
+
+    <script>
+        // গেমের উপাদানগুলো নির্বাচন
+        const farmGrid = document.getElementById('farm-grid');
+        const moneyDisplay = document.getElementById('money-display');
+        const messageBox = document.getElementById('message-box');
+
+        // গেমের অবস্থা
+        let money = 10;
+        let plots = [];
+        const plotSize = 25; // খামারের প্লটের সংখ্যা (5x5)
+        const seedCost = 5;
+        const harvestValue = 15;
+        const growthTime = 5000; // ফসল বড় হতে সময় (মিলিসেকেন্ড)
+
+        // প্লটগুলোর অবস্থা
+        const PLOT_STATE = {
+            EMPTY: 'empty',
+            PLANTED: 'planted',
+            READY: 'ready'
+        };
+
+        // UI আপডেট করার ফাংশন
+        function updateUI() {
+            moneyDisplay.textContent = `টাকা: $${money}`;
+            
+            // প্রতিটি প্লটের অবস্থা অনুযায়ী তার ছবি এবং ডেটা আপডেট করা
+            plots.forEach((plot, index) => {
+                const plotElement = farmGrid.children[index];
+                if (plotElement) {
+                    let content = '';
+                    switch (plot.state) {
+                        case PLOT_STATE.EMPTY:
+                            content = '';
+                            break;
+                        case PLOT_STATE.PLANTED:
+                            content = '🌱'; // চারা গাছ
+                            break;
+                        case PLOT_STATE.READY:
+                            content = '🌽'; // ভুট্টা
+                            break;
+                    }
+                    plotElement.innerHTML = content;
+                }
+            });
+        }
+
+        // মেসেজ দেখানোর ফাংশন
+        function showMessage(msg) {
+            messageBox.textContent = msg;
+            setTimeout(() => {
+                messageBox.textContent = '';
+            }, 2000);
+        }
+
+        // প্লট তৈরি করার ফাংশন
+        function createPlots() {
+            for (let i = 0; i < plotSize; i++) {
+                // প্লটের ডেটা তৈরি
+                plots.push({
+                    state: PLOT_STATE.EMPTY,
+                    plantedTime: null
+                });
+
+                // প্লটের HTML এলিমেন্ট তৈরি
+                const plotElement = document.createElement('div');
+                plotElement.classList.add('farm-plot');
+                plotElement.dataset.index = i; // ডেটা-ইনডেক্স সেট করা
+                farmGrid.appendChild(plotElement);
+
+                // প্লটে ক্লিক ইভেন্ট লিসেনার যোগ করা
+                plotElement.addEventListener('click', handlePlotClick);
+            }
+        }
+
+        // প্লটে ক্লিক হ্যান্ডেল করার ফাংশন
+        function handlePlotClick(event) {
+            const plotIndex = parseInt(event.target.dataset.index);
+            const plot = plots[plotIndex];
+
+            switch (plot.state) {
+                case PLOT_STATE.EMPTY:
+                    // যদি পর্যাপ্ত টাকা থাকে, তাহলে বীজ রোপণ করো
+                    if (money >= seedCost) {
+                        plantSeed(plot);
+                        showMessage('বীজ রোপণ করা হয়েছে! 🌿');
+                    } else {
+                        showMessage('আপনার কাছে পর্যাপ্ত টাকা নেই!');
+                    }
+                    break;
+                case PLOT_STATE.READY:
+                    // যদি ফসল প্রস্তুত হয়, তাহলে ফসল সংগ্রহ করো
+                    harvestCrop(plot);
+                    showMessage('ফসল কাটা হয়েছে! 🎉');
+                    break;
+                case PLOT_STATE.PLANTED:
+                    showMessage('ফসল এখনও বড় হচ্ছে... ⏳');
+                    break;
+            }
+            updateUI();
+        }
+
+        // বীজ রোপণ করার ফাংশন
+        function plantSeed(plot) {
+            money -= seedCost;
+            plot.state = PLOT_STATE.PLANTED;
+            plot.plantedTime = Date.now();
+        }
+
+        // ফসল সংগ্রহ করার ফাংশন
+        function harvestCrop(plot) {
+            money += harvestValue;
+            plot.state = PLOT_STATE.EMPTY;
+            plot.plantedTime = null;
+        }
+
+        // গেম লুপ, যা প্রতি সেকেন্ডে প্লটগুলোর অবস্থা পরীক্ষা করবে
+        function gameLoop() {
+            plots.forEach(plot => {
+                if (plot.state === PLOT_STATE.PLANTED) {
+                    const elapsedTime = Date.now() - plot.plantedTime;
+                    if (elapsedTime >= growthTime) {
+                        plot.state = PLOT_STATE.READY;
+                    }
+                }
+            });
+            updateUI();
+        }
+
+        // গেমটি শুরু করা
+        function startGame() {
+            createPlots();
+            updateUI();
+            setInterval(gameLoop, 1000); // প্রতি সেকেন্ডে গেম লুপ চালানো
+        }
+
+        // উইন্ডো লোড হলে গেম শুরু করা
+        window.onload = startGame;
+    </script>
+</body>
+</html>
